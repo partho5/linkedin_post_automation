@@ -20,7 +20,7 @@ class OpenAIHandler:
 
             self.client = AsyncOpenAI(api_key=self.api_key)
             self.text_model = os.getenv('TEXT_MODEL', 'gpt-4-turbo-preview')
-            self.image_model = os.getenv('IMAGE_MODEL', 'dall-e-3')
+            self.image_model = os.getenv('IMAGE_MODEL', 'dall-e-2')  # Use cheaper model by default
             self.max_retries = int(os.getenv('MAX_RETRIES', '3'))
             self.retry_delay = int(os.getenv('RETRY_DELAY', '5'))
 
@@ -78,17 +78,25 @@ class OpenAIHandler:
 
             for attempt in range(self.max_retries):
                 try:
-                    response = await self.client.images.generate(
-                        model=model_to_use,
-                        prompt=prompt,
-                        size=image_size,
-                        quality=image_quality,
-                        n=1
-                    )
+                    # Prepare parameters
+                    params = {
+                        "model": model_to_use,
+                        "prompt": prompt,
+                        "size": image_size,
+                        "n": 1,
+                        "response_format": "b64_json"  # Get base64 data instead of URL
+                    }
+                    
+                    # Only add quality parameter for dall-e-3
+                    if model_to_use == "dall-e-3":
+                        params["quality"] = image_quality
 
-                    image_url = response.data[0].url
+                    response = await self.client.images.generate(**params)
+
+                    # Return base64 data instead of URL
+                    image_data = response.data[0].b64_json
                     logger.info(f"Image generated successfully with model: {model_to_use}")
-                    return image_url
+                    return image_data
 
                 except openai.RateLimitError as e:
                     logger.warning(f"Rate limit hit on attempt {attempt + 1}: {str(e)}")

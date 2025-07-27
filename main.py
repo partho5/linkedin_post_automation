@@ -422,6 +422,7 @@ from ai_writer import AIWriter
 from image_generation_handler import ImageHandler
 from linkedin_api_handler import LinkedInAPI
 from linkedin_oauth_handler import LinkedInOAuthHandler
+from content_automation_pipeline import ContentAutomationPipeline
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -521,11 +522,21 @@ class LinkedInPostRequest(BaseModel):
     content: str
     image_path: str = "assets/media/image/photo.png"
 
+class AutomateContentRequest(BaseModel):
+    enable_idea_generation: bool = True
+    enable_content_generation: bool = True
+    enable_image_generation: bool = True
+    enable_posting: bool = True
+    custom_prompt: Optional[str] = None
+    style_params: Optional[str] = None
+    custom_topic: Optional[str] = None
+
 # Handlers
 ai_writer = AIWriter()
 image_handler = ImageHandler()
 linkedin_api = LinkedInAPI()
 scheduler = ContentScheduler()
+automation_pipeline = ContentAutomationPipeline()
 
 # Register scheduler callbacks
 def scheduler_post_callback(payload):
@@ -671,7 +682,35 @@ async def exchange_linkedin_token(req: LinkedInOAuthRequest):
             "error": str(e)
         }
 
-@app.post("/api/v1/linkedin/post", dependencies=[Depends(verify_token)])
+@app.post("/api/v1/automate-content", dependencies=[Depends(verify_token)])
+async def automate_content(req: AutomateContentRequest):
+    """Execute the complete content automation pipeline"""
+    try:
+        logger.info(f"Starting content automation pipeline with settings: {req.dict()}")
+        
+        result = await automation_pipeline.execute_full_pipeline(
+            enable_idea_generation=req.enable_idea_generation,
+            enable_content_generation=req.enable_content_generation,
+            enable_image_generation=req.enable_image_generation,
+            enable_posting=req.enable_posting,
+            custom_prompt=req.custom_prompt,
+            style_params=req.style_params,
+            custom_topic=req.custom_topic
+        )
+        
+        if result.get("success"):
+            logger.info(f"Content automation pipeline completed successfully: {result.get('pipeline_id')}")
+            return result
+        else:
+            logger.error(f"Content automation pipeline failed: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=result.get("error", "Pipeline execution failed"))
+            
+    except Exception as e:
+        logger.error(f"Exception in automate_content: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/linkedin/post")
 async def post_to_linkedin(req: LinkedInPostRequest):
     """Post content to LinkedIn using OAuth tokens"""
     try:

@@ -42,12 +42,12 @@ class ImageHandler:
                 logger.error("Failed to create image prompt")
                 return await self._get_fallback_image() if self.fallback_enabled else None
 
-            # Generate image using OpenAI
-            image_url = await self.openai_handler.generate_image(image_prompt)
+            # Generate image using OpenAI (now returns base64 data)
+            image_data = await self.openai_handler.generate_image(image_prompt)
 
-            if image_url:
-                # Download and save the image locally
-                local_path = await self._download_and_save_image(image_url, content_summary)
+            if image_data:
+                # Save base64 data directly to local file
+                local_path = await self._save_base64_image(image_data, content_summary)
                 logger.info(f"Image generated and saved successfully: {local_path}")
                 return local_path
             else:
@@ -91,7 +91,7 @@ class ImageHandler:
             logger.error(f"Error creating image prompt: {str(e)}")
             return None
 
-    async def _download_and_save_image(self, image_url: str, content_summary: str) -> Optional[str]:
+    async def _download_and_save_image2(self, image_url: str, content_summary: str) -> Optional[str]:
         """Download image from URL and save locally"""
         try:
             # Create safe filename from content summary
@@ -101,22 +101,76 @@ class ImageHandler:
             filename = f"{safe_filename}_{timestamp}.png"
             file_path = os.path.join(self.images_dir, filename)
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(image_url)
-                response.raise_for_status()
+            # Special handling for DALL-E URLs
+            headers = {}
+            if 'oaidalleapiprodscus.blob.core.windows.net' in image_url:
+                # DALL-E URLs are temporary and may need special handling
+                # Try with different timeout and retry logic
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
 
-                # Save the image
-                with open(file_path, 'wb') as f:
-                    f.write(response.content)
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                for attempt in range(3):
+                    try:
+                        response = await client.get(image_url, headers=headers)
+                        response.raise_for_status()
 
-                # Optimize image size if needed
-                await self._optimize_image(file_path)
+                        # Save the image
+                        with open(file_path, 'wb') as f:
+                            f.write(response.content)
 
-                logger.info(f"Image downloaded and saved: {file_path}")
-                return file_path
+                        # Optimize image size if needed
+                        await self._optimize_image(file_path)
+
+                        logger.info(f"Image downloaded and saved: {file_path}")
+                        return file_path
+                        
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code == 403 and attempt < 2:
+                            logger.warning(f"403 error on attempt {attempt + 1}, retrying...")
+                            await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                            continue
+                        else:
+                            raise
+                    except Exception as e:
+                        if attempt < 2:
+                            logger.warning(f"Download error on attempt {attempt + 1}, retrying...")
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        else:
+                            raise
 
         except Exception as e:
             logger.error(f"Error downloading image: {str(e)}")
+            return None
+
+    async def _save_base64_image(self, base64_data: str, content_summary: str) -> Optional[str]:
+        """Save base64 image data directly to local file"""
+        try:
+            import base64
+            
+            # Create safe filename from content summary
+            safe_filename = "".join(c for c in content_summary[:50] if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            safe_filename = safe_filename.replace(' ', '_')
+            timestamp = str(int(asyncio.get_event_loop().time()))
+            filename = f"{safe_filename}_{timestamp}.png"
+            file_path = os.path.join(self.images_dir, filename)
+
+            # Decode base64 data and save to file
+            image_bytes = base64.b64decode(base64_data)
+            
+            with open(file_path, 'wb') as f:
+                f.write(image_bytes)
+
+            # Optimize image size if needed
+            await self._optimize_image(file_path)
+
+            logger.info(f"Base64 image saved: {file_path}")
+            return file_path
+
+        except Exception as e:
+            logger.error(f"Error saving base64 image: {str(e)}")
             return None
 
     async def _optimize_image(self, file_path: str) -> None:
@@ -158,9 +212,9 @@ class ImageHandler:
 
             for prompt in fallback_prompts:
                 try:
-                    image_url = await self.openai_handler.generate_image(prompt)
-                    if image_url:
-                        file_path = await self._download_and_save_image(image_url, "fallback")
+                    image_data = await self.openai_handler.generate_image(prompt)
+                    if image_data:
+                        file_path = await self._save_base64_image(image_data, "fallback")
                         logger.info("Fallback image generated successfully")
                         return file_path
                 except Exception as e:
