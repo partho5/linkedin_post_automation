@@ -18,3 +18,6 @@ Rules:
 - Max 2 questions in total
 - Optimize layout for mobile (short paras, spacing)
 - Length: 1500 characters
+
+Important constraint: Do not use any markdown formatting such as **, #, or other special characters for bold, headings, or lists.
+You are forbidden to use any emoji. Instead of emdash or long hyphen use regular hyphen(-).

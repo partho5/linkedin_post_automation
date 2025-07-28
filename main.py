@@ -413,6 +413,7 @@ class ContentScheduler:
 
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from uuid import uuid4
 from datetime import datetime
@@ -565,6 +566,110 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     await scheduler.stop_scheduler()
+
+@app.get("/")
+async def index():
+    """Serve a simple index page with LinkedIn authorization link"""
+    return HTMLResponse(content="""
+        <html>
+            <head>
+                <title>LinkedIn Content Automation API</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    .container { max-width: 600px; margin: 0 auto; }
+                    .button { background: #0077b5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; margin: 10px 0; }
+                    .button:hover { background: #005885; }
+                    .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 4px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>LinkedIn Content Automation API</h1>
+                    
+                    <div class="section">
+                        <h2>LinkedIn Authorization</h2>
+                        <p>To use the LinkedIn posting features, you need to authorize this application:</p>
+                        <a href="/api/v1/linkedin/authorize" class="button">Authorize LinkedIn</a>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>API Endpoints</h2>
+                        <p><strong>Health Check:</strong> <code>GET /api/v1/health-check</code></p>
+                        <p><strong>Generate Content:</strong> <code>POST /api/v1/generate-content</code></p>
+                        <p><strong>Generate Image:</strong> <code>POST /api/v1/generate-image</code></p>
+                        <p><strong>Post to LinkedIn:</strong> <code>POST /api/v1/linkedin/post</code></p>
+                        <p><strong>Automate Content:</strong> <code>POST /api/v1/automate-content</code></p>
+                        <p><strong>Exchange Token:</strong> <code>POST /api/v1/linkedin/exchange-token</code></p>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>Documentation</h2>
+                        <p>For detailed API documentation, see the README.md file.</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+    """)
+
+@app.post("/api/v1/save-openai-key")
+async def save_openai_key(request: dict = Body(...)):
+    """Save OpenAI API key to .env file"""
+    try:
+        api_key = request.get('api_key')
+        if not api_key:
+            return {
+                "success": False,
+                "error": "API key is required"
+            }
+        
+        # Validate API key format (basic check)
+        if not api_key.startswith('sk-'):
+            return {
+                "success": False,
+                "error": "Invalid OpenAI API key format. Should start with 'sk-'"
+            }
+        
+        # Read existing .env file
+        env_path = '.env'
+        env_content = ""
+        if os.path.exists(env_path):
+            with open(env_path, 'r') as f:
+                env_content = f.read()
+        
+        # Check if OPENAI_API_KEY already exists
+        if 'OPENAI_API_KEY=' in env_content:
+            # Update existing key
+            lines = env_content.split('\n')
+            updated_lines = []
+            for line in lines:
+                if line.startswith('OPENAI_API_KEY='):
+                    updated_lines.append(f'OPENAI_API_KEY={api_key}')
+                else:
+                    updated_lines.append(line)
+            env_content = '\n'.join(updated_lines)
+        else:
+            # Add new key
+            if env_content and not env_content.endswith('\n'):
+                env_content += '\n'
+            env_content += f'OPENAI_API_KEY={api_key}\n'
+        
+        # Write back to .env file
+        with open(env_path, 'w') as f:
+            f.write(env_content)
+        
+        logger.info("OpenAI API key saved to .env file")
+        
+        return {
+            "success": True,
+            "message": "OpenAI API key saved successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving OpenAI API key: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to save API key: {str(e)}"
+        }
 
 @app.get("/api/v1/health-check")
 def health_check():
@@ -749,3 +854,174 @@ async def post_to_linkedin(req: LinkedInPostRequest):
             "success": False,
             "error": str(e)
         }
+
+@app.get("/api/v1/linkedin/authorize")
+async def authorize_linkedin():
+    """Serve a basic HTML page for LinkedIn authorization"""
+    try:
+        client_id = os.getenv('LINKEDIN_CLIENT_ID')
+        redirect_uri = os.getenv('LINKEDIN_CALLBACK_URL')
+        state = str(uuid4()) # Optional: use a state parameter for CSRF protection
+
+        if not client_id or not redirect_uri:
+            raise HTTPException(status_code=500, detail="Missing LinkedIn OAuth configuration")
+
+        auth_url = f"https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={client_id}&redirect_uri=http://127.0.0.1:8001/auth_callback&scope=openid+profile+w_member_social+email&state={state}"
+        return HTMLResponse(content=f"""
+            <html>
+                <head>
+                    <title>LinkedIn Authorization</title>
+                </head>
+                <body>
+                    <h1>LinkedIn Authorization</h1>
+                    <p>Click the button below to authorize this application:</p>
+                    <a href="{auth_url}" target="_blank">
+                        <button>Authorize LinkedIn</button>
+                    </a>
+                    <p>After authorization, you will be redirected back to this application.</p>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        logger.error(f"Error serving LinkedIn authorization page: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/auth_callback")
+async def auth_callback(code: str, state: str = None):
+    """Handle LinkedIn OAuth callback and automatically exchange code for tokens"""
+    try:
+        # Get LinkedIn OAuth configuration from environment variables
+        client_id = os.getenv('LINKEDIN_CLIENT_ID')
+        client_secret = os.getenv('LINKEDIN_CLIENT_SECRET')
+        redirect_uri = "http://127.0.0.1:8001/auth_callback"
+        
+        if not all([client_id, client_secret]):
+            return HTMLResponse(content="""
+                <html>
+                    <head><title>LinkedIn Authorization Error</title></head>
+                    <body>
+                        <h1>LinkedIn Authorization Error</h1>
+                        <p>Missing LinkedIn OAuth configuration</p>
+                    </body>
+                </html>
+            """)
+        
+        # Initialize OAuth handler
+        oauth_handler = LinkedInOAuthHandler(
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri
+        )
+        
+        # Exchange code for tokens
+        token_data = await oauth_handler.exchange_code_for_token(code)
+        
+        if token_data and token_data.get('access_token'):
+            # Check if OpenAI API key exists
+            openai_key_exists = bool(os.getenv('OPENAI_API_KEY'))
+            
+            return HTMLResponse(content=f"""
+                <html>
+                    <head>
+                        <title>LinkedIn Authorization Success</title>
+                        <style>
+                            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                            .success {{ color: green; }}
+                            .warning {{ color: orange; }}
+                            .info {{ background: #f0f0f0; padding: 15px; border-radius: 4px; margin: 10px 0; }}
+                            .form-section {{ background: #e8f4fd; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #b3d9ff; }}
+                            .form-section input[type="text"] {{ width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; }}
+                            .form-section button {{ background: #0077b5; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; }}
+                            .form-section button:hover {{ background: #005885; }}
+                            .status {{ padding: 10px; border-radius: 4px; margin: 10px 0; }}
+                            .status.success {{ background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }}
+                            .status.warning {{ background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }}
+                        </style>
+                        <script>
+                            async function saveOpenAIKey() {{
+                                const apiKey = document.getElementById('openai_key').value.trim();
+                                if (!apiKey) {{
+                                    alert('Please enter your OpenAI API key');
+                                    return;
+                                }}
+                                
+                                try {{
+                                    const response = await fetch('/api/v1/save-openai-key', {{
+                                        method: 'POST',
+                                        headers: {{
+                                            'Content-Type': 'application/json',
+                                        }},
+                                        body: JSON.stringify({{ api_key: apiKey }})
+                                    }});
+                                    
+                                    const result = await response.json();
+                                    
+                                    if (result.success) {{
+                                        document.getElementById('status').innerHTML = '<div class="status success">✅ OpenAI API key saved successfully!</div>';
+                                    }} else {{
+                                        document.getElementById('status').innerHTML = '<div class="status warning">❌ Error: ' + result.error + '</div>';
+                                    }}
+                                }} catch (error) {{
+                                    document.getElementById('status').innerHTML = '<div class="status warning">❌ Error: ' + error.message + '</div>';
+                                }}
+                            }}
+                        </script>
+                    </head>
+                    <body>
+                        <h1 class="success">✅ LinkedIn Authorization Successful!</h1>
+                        <p>Your LinkedIn account has been successfully connected.</p>
+                        
+                        <div class="info">
+                            <h3>Token Information:</h3>
+                            <p><strong>Access Token:</strong> {token_data.get('access_token', '')[:20]}...</p>
+                            <p><strong>Expires In:</strong> {token_data.get('expires_in', 'Unknown')} seconds</p>
+                            <p><strong>Token Type:</strong> {token_data.get('token_type', 'Unknown')}</p>
+                        </div>
+                        
+                        <div class="form-section">
+                            <h3>OpenAI API Configuration</h3>
+                            <div id="status"></div>
+                            
+                            {f'<div class="status success">✅ OpenAI API key is currently configured</div>' if openai_key_exists else f'<div class="status warning">⚠️ OpenAI API key is required for content and image generation.</div>'}
+                            <p>Enter your OpenAI API key to enable AI-powered content generation:</p>
+                            <input type="text" id="openai_key" placeholder="sk-..." style="font-family: monospace;" value="{os.getenv('OPENAI_API_KEY', '')}">
+                            <br>
+                            <button id="save_btn" onclick="saveOpenAIKey()">Save OpenAI API Key</button>
+                            <p><small>Your API key will be saved securely in the .env file. You can update it anytime.</small></p>
+                        </div>
+                        
+                        <h3>What's Next?</h3>
+                        <p>You can now use the LinkedIn posting features:</p>
+                        <ul>
+                            <li>Generate and post content automatically</li>
+                            <li>Schedule posts for later</li>
+                            <li>Use the automation pipeline</li>
+                        </ul>
+                        
+                        <p><strong>Note:</strong> Your tokens have been saved and will be used automatically for future requests.</p>
+                    </body>
+                </html>
+            """)
+        else:
+            return HTMLResponse(content="""
+                <html>
+                    <head><title>LinkedIn Authorization Error</title></head>
+                    <body>
+                        <h1>LinkedIn Authorization Error</h1>
+                        <p>Failed to exchange authorization code for tokens.</p>
+                    </body>
+                </html>
+            """)
+            
+    except Exception as e:
+        logger.error(f"Error in auth_callback: {str(e)}")
+        return HTMLResponse(content=f"""
+            <html>
+                <head><title>LinkedIn Authorization Error</title></head>
+                <body>
+                    <h1>LinkedIn Authorization Error</h1>
+                    <p>Error: {str(e)}</p>
+                    <p>Please try again or contact support.</p>
+                </body>
+            </html>
+        """)

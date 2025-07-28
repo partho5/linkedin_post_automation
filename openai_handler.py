@@ -83,9 +83,12 @@ class OpenAIHandler:
                         "model": model_to_use,
                         "prompt": prompt,
                         "size": image_size,
-                        "n": 1,
-                        "response_format": "b64_json"  # Get base64 data instead of URL
+                        "n": 1
                     }
+                    
+                    # Only add response_format for models that support it
+                    if model_to_use in ["dall-e-2", "dall-e-3"]:
+                        params["response_format"] = "b64_json"  # Get base64 data instead of URL
                     
                     # Only add quality parameter for dall-e-3
                     if model_to_use == "dall-e-3":
@@ -93,10 +96,17 @@ class OpenAIHandler:
 
                     response = await self.client.images.generate(**params)
 
-                    # Return base64 data instead of URL
-                    image_data = response.data[0].b64_json
-                    logger.info(f"Image generated successfully with model: {model_to_use}")
-                    return image_data
+                    # Handle different response formats based on model
+                    if model_to_use in ["dall-e-2", "dall-e-3"] and "response_format" in params:
+                        # Return base64 data for DALL-E models
+                        image_data = response.data[0].b64_json
+                        logger.info(f"Image generated successfully with model: {model_to_use} (base64)")
+                        return image_data
+                    else:
+                        # Return URL for other models (like gpt-image-1)
+                        image_url = response.data[0].url
+                        logger.info(f"Image generated successfully with model: {model_to_use} (URL)")
+                        return image_url
 
                 except openai.RateLimitError as e:
                     logger.warning(f"Rate limit hit on attempt {attempt + 1}: {str(e)}")

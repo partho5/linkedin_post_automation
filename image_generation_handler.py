@@ -41,13 +41,21 @@ class ImageHandler:
             if not image_prompt:
                 logger.error("Failed to create image prompt")
                 return await self._get_fallback_image() if self.fallback_enabled else None
+            else:
+                print(f"image_prompt={image_prompt}")
 
-            # Generate image using OpenAI (now returns base64 data)
-            image_data = await self.openai_handler.generate_image(image_prompt)
+            # Generate image using OpenAI (returns base64 data or URL based on model)
+            image_result = await self.openai_handler.generate_image(image_prompt)
 
-            if image_data:
-                # Save base64 data directly to local file
-                local_path = await self._save_base64_image(image_data, content_summary)
+            if image_result:
+                # Check if result is base64 data or URL
+                if isinstance(image_result, str) and image_result.startswith('data:image') or len(image_result) > 1000:
+                    # Likely base64 data
+                    local_path = await self._save_base64_image(image_result, content_summary)
+                else:
+                    # Likely URL, use download method
+                    local_path = await self._download_and_save_image(image_result, content_summary)
+                
                 logger.info(f"Image generated and saved successfully: {local_path}")
                 return local_path
             else:
@@ -67,15 +75,9 @@ class ImageHandler:
             Create a professional, LinkedIn-appropriate image for a post about: {content_summary}
 
             Style: {style}
-            Requirements:
-            - Professional and clean design
-            - Suitable for business social media
-            - Eye-catching but not overly flashy
-            - Include relevant visual metaphors
-            - Use corporate-friendly colors
-            - Avoid text overlays (text will be in the post)
-            - High quality and visually appealing
-            - Appropriate for professional networking
+
+            Guidelines:
+            - The image should metaphorically represent the post’s concept, without literal or keyword-based illustrations.
             """
 
             # Use AI to refine the prompt for better image generation
@@ -84,6 +86,16 @@ class ImageHandler:
             )
 
             final_prompt = refined_prompt if refined_prompt else prompt_template
+            final_prompt += """
+             The image must contain a maximum of 1 to 3 objects. Having more than 3 objects in the image is not allowed.
+            - for human, face MUST be photorealistic, camera-captured look.
+            - Important constraint: You must strictly avoid all cliché imagery such as light bulbs, gear icons, graphs, charts, digital dashboards, or generic technology symbols.
+            - Use only real-world, everyday objects commonly seen in natural or human environments — nothing abstract, symbolic, or icon-based.
+            - No small objects, icons, or decorative elements should surround or distract from the main subject.
+            - Focus on a single, clear composition with minimal or no background clutter.
+            - Do not include any text or overlays.
+            """
+
             logger.info("Image prompt created successfully")
             return final_prompt
 
@@ -212,9 +224,16 @@ class ImageHandler:
 
             for prompt in fallback_prompts:
                 try:
-                    image_data = await self.openai_handler.generate_image(prompt)
-                    if image_data:
-                        file_path = await self._save_base64_image(image_data, "fallback")
+                    image_result = await self.openai_handler.generate_image(prompt)
+                    if image_result:
+                        # Check if result is base64 data or URL
+                        if isinstance(image_result, str) and image_result.startswith('data:image') or len(image_result) > 1000:
+                            # Likely base64 data
+                            file_path = await self._save_base64_image(image_result, "fallback")
+                        else:
+                            # Likely URL, use download method
+                            file_path = await self._download_and_save_image(image_result, "fallback")
+                        
                         logger.info("Fallback image generated successfully")
                         return file_path
                 except Exception as e:
