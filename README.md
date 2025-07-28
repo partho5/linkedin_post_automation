@@ -11,6 +11,9 @@
    ```bash
    uvicorn main:app --host 127.0.0.1 --port 8001
    ```
+5. Open browser and visit: `http://127.0.0.1:8001`
+6. Click "Authorize LinkedIn" to set up OAuth
+7. Enter your OpenAI API key when prompted
 
 ## Authentication
 All API endpoints require Bearer token authentication. Set `BASIC_AUTH_TOKEN` in your `.env` file and include it in requests:
@@ -182,10 +185,55 @@ Check the status of a scheduled job.
 }
 ```
 
-### 7. LinkedIn OAuth Token Exchange
+### 7. LinkedIn OAuth Authorization
+**GET** `/api/v1/linkedin/authorize`
+
+Get LinkedIn authorization URL and display authorization page.
+
+**Response:** HTML page with LinkedIn authorization button
+
+### 8. LinkedIn OAuth Callback
+**GET** `/auth_callback`
+
+Handle LinkedIn OAuth callback and automatically exchange authorization code for tokens.
+
+**Query Parameters:**
+- `code` (required) - Authorization code from LinkedIn
+- `state` (optional) - State parameter for CSRF protection
+
+**Response:** HTML page with success message and OpenAI API key configuration
+
+### 9. Save OpenAI API Key
+**POST** `/api/v1/save-openai-key`
+
+Save OpenAI API key to .env file.
+
+**Request Body:**
+```json
+{
+  "api_key": "string (required)"
+}
+```
+
+**Example Request:**
+```json
+{
+  "api_key": "sk-your-openai-api-key-here"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "OpenAI API key saved successfully"
+}
+```
+
+### 10. LinkedIn OAuth Token Exchange (Legacy)
 **POST** `/api/v1/linkedin/exchange-token`
 
-Exchange LinkedIn authorization code for access tokens.
+Exchange LinkedIn authorization code for access tokens (manual method).
 
 **Request Body:**
 ```json
@@ -214,7 +262,7 @@ Exchange LinkedIn authorization code for access tokens.
 }
 ```
 
-### 8. Post to LinkedIn (OAuth)
+### 11. Post to LinkedIn (OAuth)
 **POST** `/api/v1/linkedin/post`
 
 Post content to LinkedIn using OAuth tokens.
@@ -247,7 +295,7 @@ Post content to LinkedIn using OAuth tokens.
 }
 ```
 
-### 9. Automate Content Pipeline
+### 12. Automate Content Pipeline
 **POST** `/api/v1/automate-content`
 
 Execute the complete content automation pipeline from idea generation to LinkedIn posting.
@@ -419,7 +467,28 @@ GET http://127.0.0.1:8001/api/v1/status/{job_id}
 Headers: Authorization: Bearer your_api_token
 ```
 
-#### 7. LinkedIn OAuth Token Exchange
+#### 7. LinkedIn OAuth Authorization
+```
+GET http://127.0.0.1:8001/api/v1/linkedin/authorize
+```
+
+#### 8. LinkedIn OAuth Callback
+```
+GET http://127.0.0.1:8001/auth_callback?code=your_auth_code&state=your_state
+```
+
+#### 9. Save OpenAI API Key
+```
+POST http://127.0.0.1:8001/api/v1/save-openai-key
+Headers:
+  Content-Type: application/json
+Body:
+{
+  "api_key": "sk-your-openai-api-key-here"
+}
+```
+
+#### 10. LinkedIn OAuth Token Exchange (Legacy)
 ```
 POST http://127.0.0.1:8001/api/v1/linkedin/exchange-token
 Headers:
@@ -431,7 +500,7 @@ Body:
 }
 ```
 
-#### 8. Post to LinkedIn (OAuth)
+#### 11. Post to LinkedIn (OAuth)
 ```
 POST http://127.0.0.1:8001/api/v1/linkedin/post
 Headers:
@@ -444,7 +513,7 @@ Body:
 }
 ```
 
-#### 9. Automate Content Pipeline
+#### 12. Automate Content Pipeline
 ```
 POST http://127.0.0.1:8001/api/v1/automate-content
 Headers:
@@ -497,16 +566,20 @@ Body:
 **Solution:** Ensure all LinkedIn OAuth environment variables are set in your `.env` file.
 
 ## Features
-- ✅ **LinkedIn OAuth Integration** - Secure token management
+- ✅ **LinkedIn OAuth Integration** - Secure token management with automated flow
+- ✅ **Web-based Authorization** - Simple browser-based OAuth setup
+- ✅ **OpenAI API Key Management** - Web interface for API key configuration
 - ✅ **Text & Image Posts** - Support for both content types
 - ✅ **URL & Local Images** - Upload from web or local files
 - ✅ **Automatic Token Refresh** - No manual token management
-- 🔄 **Content Generation** - AI-powered post creation
-- 🔄 **Image Generation** - AI-generated visuals
-- 🔄 **Post Scheduling** - Automated posting with status monitoring
+- ✅ **Content Generation** - AI-powered post creation
+- ✅ **Image Generation** - AI-generated visuals with multiple model support
+- ✅ **Post Scheduling** - Automated posting with status monitoring
 
 ## Notes
 - OAuth tokens are automatically stored in `assets/linkedin_tokens.json`
+- OpenAI API keys are stored in `.env` file
 - Image paths support both local files and public URLs
-- All endpoints require Bearer token authentication
+- All API endpoints require Bearer token authentication (except OAuth flow)
+- Web interface available at `http://127.0.0.1:8001` for easy setup
 - See `.env.example` for complete configuration 
