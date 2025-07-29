@@ -15,6 +15,83 @@
 6. Click "Authorize LinkedIn" to set up OAuth
 7. Enter your OpenAI API key when prompted
 
+## Automated LinkedIn Posting with run.py (Windows PC)
+
+For automated LinkedIn content generation and posting on Windows PC:
+
+### Prerequisites
+- Python virtual environment named `linkedin_automation` must be created and activated
+- All dependencies installed in the virtual environment
+- LinkedIn OAuth and OpenAI API keys configured
+
+### Step 1: Start the Server
+First, activate your virtual environment and start the server:
+```bash
+# Activate virtual environment
+source linkedin_automation/Scripts/activate
+
+# Start the server
+uvicorn main:app --host 127.0.0.1 --port 8001
+```
+
+### Step 2: Run the Automation Script
+In a new terminal window, run the automation script:
+```bash
+# Activate virtual environment (if not already activated)
+# source linkedin_automation/Scripts/activate
+
+# Run the automation script
+python run.py
+```
+
+### What run.py Does
+The `run.py` script will:
+1. **Check if server is running** on the configured host and port
+2. **Start server automatically** if not running (using virtual environment)
+3. **Trigger the complete LinkedIn posting workflow**:
+   - Generate content ideas
+   - Create professional LinkedIn posts
+   - Generate relevant images
+   - Post to LinkedIn automatically
+4. **Display real-time logs** from the server and API responses
+5. **Handle errors gracefully** with detailed error messages
+
+### Configuration
+Set these environment variables in your `.env` file:
+```bash
+APP_HOST=127.0.0.1
+APP_PORT=8001
+BASIC_AUTH_TOKEN=your_auth_token_here
+```
+
+### Expected Output
+```
+LinkedIn Content Automation Runner
+========================================
+🔍 Checking if server is running on 127.0.0.1:8001...
+✅ Server is already running!
+🚀 Starting LinkedIn content automation...
+📡 API URL: http://127.0.0.1:8001/api/v1/automate-content
+⚙️  Configuration: {
+  "enable_idea_generation": true,
+  "enable_content_generation": true,
+  "enable_image_generation": true,
+  "enable_posting": true,
+  "style_params": "professional and engaging"
+}
+⏱️  Timeout: 600 seconds
+--------------------------------------------------
+📡 Making API request...
+📝 [SERVER LOG] INFO: Starting content automation pipeline...
+📝 [SERVER LOG] INFO: Generating content ideas...
+📝 [SERVER LOG] INFO: Creating LinkedIn post...
+📝 [SERVER LOG] INFO: Generating image...
+📝 [SERVER LOG] INFO: Posting to LinkedIn...
+📊 Response Status: 200
+✅ Automation pipeline completed successfully!
+🎉 Automation completed successfully!
+```
+
 ## Authentication
 All API endpoints require Bearer token authentication. Set `BASIC_AUTH_TOKEN` in your `.env` file and include it in requests:
 ```
