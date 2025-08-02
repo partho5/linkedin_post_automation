@@ -30,6 +30,23 @@
 - **Startups**: Build brand awareness and credibility cost-effectively
 
 ## Quick Start
+
+### 🚀 Simplest Way (Local PC)
+For the easiest setup on your local PC, simply run:
+```bash
+python run.py
+```
+
+This single command will:
+- ✅ Automatically start the server if needed
+- ✅ Handle all dependencies and configurations
+- ✅ Generate LinkedIn content ideas and posts
+- ✅ Save generated articles to `generated_images/` directory
+- ✅ Display real-time progress and results
+
+### 📋 Manual Setup (Advanced Users)
+If you prefer manual control:
+
 1. Clone repository
 2. Create `.env` file with credentials (see .env.example)
 3. Install dependencies:
@@ -44,14 +61,16 @@
 6. Click "Authorize LinkedIn" to set up OAuth
 7. Enter your OpenAI API key when prompted
 
-## Automated LinkedIn Posting with run.py (Windows PC)
+## 🎯 One-Click Automation with run.py
 
-For automated LinkedIn content generation and posting on Windows PC:
+**The easiest way to use this tool on your local PC!** Simply run `python run.py` and everything happens automatically.
 
 ### Prerequisites
-- Python virtual environment named `linkedin_automation` must be created and activated
-- All dependencies installed in the virtual environment
-- LinkedIn OAuth and OpenAI API keys configured
+- Python 3.8+ installed
+- LinkedIn OAuth and OpenAI API keys configured in `.env` file
+- Internet connection for API calls
+
+**Note**: The script handles virtual environment and dependencies automatically!
 
 ### Step 1: Start the Server
 First, activate your virtual environment and start the server:
@@ -74,16 +93,17 @@ python run.py
 ```
 
 ### What run.py Does
-The `run.py` script will:
-1. **Check if server is running** on the configured host and port
-2. **Start server automatically** if not running (using virtual environment)
-3. **Trigger the complete LinkedIn posting workflow**:
+The `run.py` script is your **one-command solution** that:
+1. **🔄 Auto-starts everything** - Server, dependencies, and configurations
+2. **🎯 Runs the complete pipeline**:
    - Generate content ideas
    - Create professional LinkedIn posts
-   - Generate relevant images
-   - Post to LinkedIn automatically
-4. **Display real-time logs** from the server and API responses
-5. **Handle errors gracefully** with detailed error messages
+   - Save articles to `generated_images/` directory
+   - Generate relevant images (optional)
+   - Post to LinkedIn automatically (optional)
+3. **📊 Shows real-time progress** with detailed logs and results
+4. **🛡️ Handles errors gracefully** with clear error messages
+5. **💾 Saves all generated content** for future reference
 
 ### Configuration
 Set these environment variables in your `.env` file:
@@ -104,22 +124,28 @@ LinkedIn Content Automation Runner
 ⚙️  Configuration: {
   "enable_idea_generation": true,
   "enable_content_generation": true,
-  "enable_image_generation": true,
-  "enable_posting": true,
+  "enable_image_generation": false,
+  "enable_posting": false,
   "style_params": "professional and engaging"
 }
 ⏱️  Timeout: 600 seconds
 --------------------------------------------------
 📡 Making API request...
-📝 [SERVER LOG] INFO: Starting content automation pipeline...
-📝 [SERVER LOG] INFO: Generating content ideas...
-📝 [SERVER LOG] INFO: Creating LinkedIn post...
-📝 [SERVER LOG] INFO: Generating image...
-📝 [SERVER LOG] INFO: Posting to LinkedIn...
 📊 Response Status: 200
 ✅ Automation pipeline completed successfully!
 🎉 Automation completed successfully!
+
+💾 Generated articles saved to: generated_images/ directory
 ```
+
+### 📁 Generated Content Storage
+All generated articles are automatically saved to the `generated_images/` directory with:
+- **Unique filenames** with timestamps and topic names
+- **Complete metadata** including topic, generation time, and full content
+- **Easy access** for review, editing, or reposting
+- **UTF-8 encoding** for proper handling of special characters and emojis
+
+Example saved file: `article_20250802_151035_Why_Small_Economies_Can_Teach_Us_Big_Lessons_in_Da.txt`
 
 ## Authentication
 All API endpoints require Bearer token authentication. Set `BASIC_AUTH_TOKEN` in your `.env` file and include it in requests:

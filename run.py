@@ -122,8 +122,8 @@ async def run_automation():
     payload = {
         "enable_idea_generation": True,
         "enable_content_generation": True,
-        "enable_image_generation": True,
-        "enable_posting": True,
+        "enable_image_generation": False,
+        "enable_posting": False,
         "style_params": "professional and engaging"
     }
     

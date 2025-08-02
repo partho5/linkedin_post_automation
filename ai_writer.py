@@ -75,6 +75,10 @@ class AIWriter:
 
             if content:
                 logger.info(f"Post content generated successfully for topic: {topic}")
+                
+                # Save the generated content to a text file in generated_images directory
+                await self._save_content_to_file(content, topic)
+                
                 return content
             else:
                 logger.error("Failed to generate post content")
@@ -197,3 +201,50 @@ What's your experience with {topic}? Share your thoughts below! 👇
         else:
             logger.error("Fallback disabled and content generation failed")
             return None
+
+    async def _save_content_to_file(self, content: str, topic: str) -> None:
+        """Save generated content to a text file in the generated_images directory"""
+        try:
+            import os
+            from datetime import datetime
+            
+            # Debug: Print current working directory
+            current_dir = os.getcwd()
+            logger.info(f"Current working directory: {current_dir}")
+            
+            # Ensure generated_images directory exists
+            generated_dir = "generated_images"
+            logger.info(f"Checking for directory: {generated_dir}")
+            
+            if not os.path.exists(generated_dir):
+                os.makedirs(generated_dir)
+                logger.info(f"Created directory: {generated_dir}")
+            else:
+                logger.info(f"Directory already exists: {generated_dir}")
+            
+            # Create filename with timestamp and sanitized topic
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            sanitized_topic = "".join(c for c in topic if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            sanitized_topic = sanitized_topic.replace(' ', '_')[:50]  # Limit length and replace spaces
+            
+            filename = f"article_{timestamp}_{sanitized_topic}.txt"
+            filepath = os.path.join(generated_dir, filename)
+            
+            logger.info(f"Attempting to save file: {filepath}")
+            
+            # Write content to file
+            async with aiofiles.open(filepath, 'w', encoding='utf-8') as file:
+                await file.write(f"Topic: {topic}\n")
+                await file.write(f"Generated: {datetime.now().isoformat()}\n")
+                await file.write("-" * 50 + "\n")
+                await file.write(content)
+                await file.write("\n")
+            
+            logger.info(f"Generated article saved to: {filepath}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save content to file: {str(e)}")
+            logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Don't raise the exception to avoid breaking the main content generation flow
